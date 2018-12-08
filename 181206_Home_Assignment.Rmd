@@ -1,0 +1,417 @@
+---
+title: "The DBC Fee Debacle for Non-Contracted Health Care"
+author: "R-team"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+graphics: yes
+output: 
+    pdf_document:
+    fig_caption: yes
+    keep_tex: yes
+header-includes: 
+- \usepackage{graphicx}
+- \usepackage{float}
+- \usepackage{placeins}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE, cache = TRUE)
+library("tidyverse")
+library("readxl")
+set.seed(20190108)
+```
+
+
+# The Assignment 
+
+This assignment is a follow-up on the Exam of October 31. You will to take a closer look at the costs that health care insurances will reimburse for treatments in the mental health care sector.
+
+In the assignment your programming skills in `R` will be tested on (`tidyverse`) data wrangling and manipulation, `ggplot` visualization, and resampling studies based on statistical computing.  In total there are 4 tasks that together consist of 13 subtaks. Each subtask has an equal importance for your grade.
+
+During this assignment, only use `R` functions from the following libraries:
+
+```{r}
+library(knitr)
+library(readxl)
+library(tidyverse)
+```
+
+or any of the core libraries and functions that by default are automatically loaded at the startup of RStudio.
+
+
+## Deadline
+
+Upload a report of your answers as your own clean `YOURULCN_A1SCR2018.Rmd` file to Blackboard **before** 13.00 hours, on January 8, 2017. Your answers should be written down in an `.Rmd` file that is different from the source .Rmd file of this assignment. Moreover, we should be able to knit the `.Rmd` report without any problems in this `Rproject`'s directory.
+
+## Strategy
+
+Divide your coding problem into smaller pieces. This is especially helpful when you are stuck. Most of the times, after coding a few of these little steps, you might see how you could solve a bigger part of the coding problem.
+
+Some helpful notes, ordered from least to most important, to optimize your grade for this assignment:     
+
+- Make sure that we reproduce the exact same results you describe!      
+  
+      + Example 2: We assume that you are working in the exact same folder in which we have stored the `.Rmd` file of this assignment is stored.        
+
+      + Example 2: use `set.seed()` correctly, only once is actually enough.            
+- The `knitting` of your `.Rmd` file should take less than 5 minutes.
+
+- Sometimes your code is more readable when using basic `R` functions, especially when you do not master the `tidyverse` functions that well. 
+
+- To check whether you created variables correctly, we also stored some of the model answers in the file `Variables_from_Model_Answers.RData.` of the `0_data/` folder.      
+
+- In this assignment it is **not** necessary to control for multiple testing.
+
+
+\newpage
+
+# Background Information Regarding the Mental Health Care. 
+
+Here, the bacground information consists of two parts. An introduction that you could read just of out interest, and an introduction that is necessary to understand the assignment.
+
+## Information you may skip
+
+At this moment there are many ongoing court cases in the Netherlands between health care insurances, mental mental health care providers, and the clients / patients. Simply put, these court cases are about uncertainties that follow from the following points:    
+
+1. Health Insurances need to provide access to health care for all their clients.
+
+2. Health Insurances want to keep the reimbursements as low as possible. Especially since the prices in Mental Health Care (together with prices in medicine) are among the steepest to rise every year.
+
+3. Insurances form contracts with health care providers to decide i) what prices for health care will be completely covered by the insurances, and ii) for what maximum number of patients.    
+
+4. The National Heathcare Agency (NZa) sets maximum prices that can be asked for types of health care, referred to as the NZa fee.    
+
+5. For large health care conglomerates (e.g > 10,000 patients), most insurances offer contracts that are negotionable, for the smaller health care organizations there is only a take-it-or-leave contract available.     
+
+6. There are many \`smaller' health care providers that protest to close a contract deal with the health insurances, because
+
+    6a. from 'hear say' it is known that the large conglomerate health care providers receive coverage even higher than the fees set by NZa, and for a non-exhaustiable maximum number of patients;
+    
+    6b. year reports of health insurances show that the total amount of reimbursements is always (much) less than was allowed by their contracts, whereas many of the small \`contracted' providers had to `refuse' patients because they reached their maximum number of patients of that year;
+    
+    6c. Moreover, there are very long waiting lists in the mental health care sector; 
+
+7. When a health care provider does not close a contract with a health insurance, then by law, the health insurance is still obliged to reimburse part of the costs for the \`uncontracted' health care to assure that their is no \`financial obstacle' that refrains clients from necessary health care. However, it is up to the health insurance, what part of the costs will be reimbursed.
+
+8. To avoid this \'financial obstacle' for patients, most health insurances offer payment agreements to uncontracted health care providers. Uncontracted providers can get a part of the costs reimbursed directly, as long as they set their health care prices exactly equal to the NZa fees.
+
+Currently, the court is being asked in different cases to give a verdict on whether or not \`a financial obstacle' was blocking access to some patients to receive the necessary mental health care. 
+
+<!--- 
+https://nos.nl/op3/artikel/2259774-waarom-er-nog-88-500-nederlanders-wachten-op-psychische-hulp.html
+
+https://nos.nl/artikel/2258632-minister-dreigt-met-lagere-vergoeding-voor-zorgverleners-zonder-contract.html
+
+https://nos.nl/artikel/2191870-psychiatrische-patienten-dupe-van-strijd-verzekeraars-en-zorgaanbieders.html
+-->
+
+## Context that is necessary for this assignment
+
+In this assignment, the services and products offered by healthcare providers are identified by a three-digit code, the DBC number (Diagnosis and Treatment Combination). For example, 6 hours of therapy for Anxiety corresponds to DBC code 237. Invoices are issued by care providers based on the DBC code corresponding to the service provided.
+
+For each DBC code, the National Healthcare authority (NZa) determines a maximum price that healthcare providers can ask for -- this is referred to as the NZa fee. Although, under some circumstances it is allowed to ask higher prices than the NZa fee.
+
+Health insurances form contracts with health care providers to decide what prices for health care will be covered by the insurances. Based on these contracts, each health insurance has its own average contracted fee for each DBC code.
+
+When your health insurance restricts you as a client to only obtain care for your treatment from one of their contracted providers, but you choose to obtain care from a non-contracted provider (e.g. avoiding a long waiting list), then it is most likely that your reimbursement will be 75% of your health insurance's average contracted fee for the specific DBC code that corresponds to your treatement. Moreover, you will most likely be charged the full NZa fee by the provider. 
+
+## The data
+
+For this assignment you will be working with the real fees for DBC numbers in the mental health care sector for the years 2014-2018. For most of the DBC codes, we have the NZa fees, and the average contracted fees of health insurance companies: CZ (`CZ`), Menzis (`Menzis`), VGZ (`VGZ`), Zorg \& Zekerheid (`Z&Z`), and Zilveren Kruis (`ZK`). 
+
+The data you will have to work with are collected in the file `Tarievenoverzicht_HA1.xslx`, to be found in the `0_data` folder.
+
+## Notation
+
+$X_{ij}$ : the NZa fee for     
+
+  - the $i$'th DBC code DBC codes of all DBC codes in the data;  
+  - the $j$'th year in the set of years $[ 2014, 2018]$.     
+        
+$Y_{hij}$ : the average contracted fee of        
+
+  - the $h$th Health Insurance in the set of health insurances;     
+  - for the $i$'th DBC code (of all DBC codes);      
+  - in the $j$'th year (of the set of years $[ 2014, 2018]$).         
+      
+$Z_{hij} = 75 \times Y_{hij} / X_{ij}$ : the reimbursement of the $h$'th health insurance expressed as a percentage of the corresponding NZa fee for the $i$'th DBC in the $j$'th year.
+
+
+
+\newpage
+
+# 1. Regarding the DBC
+
+## 1.1 Load the DBC codes and its descriptions
+
+Each DBC has its own unique code and a Dutch description. These can be found on the first and fourth column sheet 1 of the file `/Tarievenoverzicht_HA1.xlsx`.
+
+Import this data into `R` such that it is exactly the same as the `Dutch_DBC` variable (that can be loaded from `Variables_from_Model_Answers.RData`). 
+
+
+### 1.2
+
+In the `0_data` folder there are two `.txt` files: `the_Dutch_words.txt` and `the_English_translation.txt` that can be used to translate all of the Dutch words in `Duthc_DBC` to English. Use the two text files to translate `Dutch_DBC` into English using `R` code. 
+
+Your translated version should be equal to `DBC_tibble`.
+
+*Hint: you may need to find a solution on how to cope with the word "NA" Moreover, we hardly used tidyverse functions in the model answers for this specific subtask, we used code that is very similar to some of the model answers of the SCR Exam 1 of October 31.*
+
+\newpage
+
+# 2. Regarding NZa fees only
+
+## 2.1 Extract the NZa fees
+
+Create a function that imports the DBC codes (column 1) and the NZa fees (column 3) from all NZa sheets in `Tarievenoverzicht_HA1.xlsx`. When you apply the function on `Tarievenoverzicht_HA1.xlsx`, the output should be of class `tibble` and equal `NZa_fees` from the data of the Model Answers.
+
+
+## 2.2 A methodology change in computing the NZa fees.
+
+The NZa changed its methodology for computing the NZa fees for 2017 and onwards.
+
+### 2.2a
+
+Let the NZa fees of 2014 represent 100%. Then, use functions from the `tidyverse` and `knitr` package to show a table from which we can obtain the 
+
+1. the minimum change percentages, expressed as $\min_i \left\{100 (X_{ij} / X_{i\{2014\}} - 1)\right\}$; 
+2. the average change in percentages, expressed as $N^{-1} \sum_{i = 1}^N 100 (X_{ij} / X_{i\{2014\}} - 1)$; 
+3. the median change in percentages, expressed as $\text{median} \left\{100 (X_{ij} / X_{i\{2014\}} - 1) \, \right\}$; 
+3. and the maximum change in percentages, expressed as $\max_i \left\{100 (X_{ij} / X_{i\{2014\}} - 1)\right\}$;  
+
+of the NZa fees for each of the years in 2015 - 2018. Thus, $j$ can represent the index for either 2015, 2016 or 2017.
+
+
+### 2.2b 
+
+From subtask `2.2a` we can see that the median, average and maximum percentual change in the years 2015 and 2016 are very consistent. However, the NZa fees in the years 2017 and 2018 do not seem to lend themselves as a linear transformation of the NZa fees in 2014.
+
+Take a look at the percentual change of the NZa fee for each period of $j$ to $j + 1$, expressed as 
+$$ 100 * \left( \frac{X_{i(j + 1)}}{X_{ij}} - 1\right).$$
+ 
+In Figure \ref{fig:NZa_boxplots}, the percentual change of the NZa fees for the DBC codes are visualized for the periods 2014-2015, 2015-2016, 2016-2017, and 2017-2018. From this figure we can obtain that the NZa fees of 2018 can also be expressed as a linear transformation of those from 2017.
+
+Reproduce this Figure with your own ggplot `R` code.
+
+\FloatBarrier
+\begin{figure}[ht]
+\includegraphics{./0_images/NZa_fees_boxplots.pdf}
+\caption{}\label{fig:NZa_boxplots}
+\end{figure}
+\FloatBarrier
+
+
+## 2.3 Statistics and the Methodology for Computing the NZa Fees.
+
+### Notation and a Null Hypothesis Model $P_{\theta}$.
+
+Suppose we have a null hypothesis model denoted by $P_{\theta}$ that states that NZa fees for two succeeding years $j$ and $j + 1$ are computed based on the same methodology.
+
+Remember, $X_{ij}$ denotes the NZa fee for the $i$'th DBC code in the $j$'th year. 
+
+Given that the null hypothesis model $P_{\theta}$ is the truth, we can assume that the NZa fee for DBC code $i$ for a year $j + 1$ is best explained as 
+$$ X_{i(j + 1)} = \left(1 + \beta_j + \epsilon_{ij} \sqrt{\frac{X_{ij}}{\min_i \left( X_{ij} \right)}} \right) X_{ij},$$
+where $\beta_j$ and $\epsilon_{ij}$ are defined as follows. 
+\begin{itemize}
+\item[] $\beta_j$ is the proportion with which the NZa fee increases from year $j$ to year $j + 1$.
+\item[] $\epsilon_{ij}$ is a random variable that is i.i.d. for each DBC code $i$. From its distribution we only know that it has a variance, denoted by $\sigma^2_j$, that is unique for each year $j$, and that its expectation over the DBC codes is equal to zero, i.e. $E[\epsilon_{ij} \sqrt{\frac{X_{ij}}{\min_i \left( X_{ij} \right)}}] = 0.$
+\end{itemize}
+
+Our best estimate for $\beta_j$ is
+
+$$\widehat{\beta_j} = N^{-1} \sum^N_{i = 1} \left( X_{i(j + 1)} / X_{ij} \right) - 1,$$
+
+and we have the following estimator $T_j$ for $\sigma^2_j$
+
+$$T_j = \text{VAR} \left\{ \left(X_{i(j + 1)} - (1 + \widehat{\beta_j})X_{ij}\right) \sqrt{\frac{ X_{ij}} {\min_i \left( X_{ij} \right)}} \right\} $$
+
+To avoid delving into details too much, it is fair to say that under the null hypothesis that the methology for computing the NZa fees did not change, we have the following concept of exchangeability:
+
+Given that $F$ is an unknown distribution of $X_{i(j + 1)}$, i.e.
+$$X_{i(j + 1)} \sim F,$$
+then we also have
+$$X_{ij} \times \left( \frac{ X_{\pi(i)(j + 1)}}{X_{\pi(i)j}} \right) \sim  F,$$ 
+where $\pi(i)$ is the number of the position of element $i$ in a random permutation of $1, \ldots, i, \ldots N$.
+  
+### The Programming Task
+
+Use the above information to create your own permutation test based on $B_{pm} = 1000$ permutation replicates for $T$. Do this for the NZa fees of the years
+\begin{itemize}
+\item[] 2016 and 2017
+\item[] 2017 and 2018
+\end{itemize}
+
+For both permutation tests, make sure that you 
+
+\begin{itemize}
+\item[] report a good estimate of the $p$-value, that describes the proportion of obtaining your observed $T$ or higher under the assumption that $P_{\theta}$ hold true;
+
+\item[] show the `ggplot` histogram of the permutation sampling distribution of $T$ in which you also indicate or mark your observed $T$ with a vertical red line;
+
+\item[] interpret your results using a significance level of $\alpha = 0.05 / 2$.
+\end{itemize}
+
+\newpage 
+
+# 3. About the Insurances
+
+## 3.1 Creating the Data Set
+
+Create a function that imports the average contracted fees for the years 2014-2018 for each DBC code of the insurances CZ, Menzis, VGZ, Z&Z and ZK. Your function should create a `tibble` of which its contents are exactly the same as our model answer `fees_insurances` (stored in `Variables_from_Model_Answers.RData`).
+
+The data can be obtained from the sheets of the relevant health insurance companies in `Tarievenoverzich_HA1.xslx`. Extract from each of these sheets the (DBC) code and the average contracted fee. The average contracted fee is either in a column where part of the name consists of `"ontract"`, or denoted by `100` or `100%`. 
+
+*Hint: We hardly used tidyverse functions in the model answers of this specific subtask, we used code that is very similar to the answers of the SCR Exam 1 of October 31.*
+
+
+## 3.2 Joining the NZa fees, the Insurance fees and the DBC codes with descriptions
+
+Merge the NZa fees (subtask 2.1), and the Insurance (subtask 3.1) fees with the DBC codes and its descriptions (subtask 1.2) into one data set that is exactly the same as `all_fees`, which is stored in `Variables_from_Model_Answers.RData`.
+
+Make sure that your final data set only consists of the DBC codes that are present in `DBC_tibble`.
+
+*Hint: this task is definitely most easy solved with tidyverse functions.*
+
+
+### 3.3 Visualizing the Reimbursements for Non-Contracted Healht Care 
+
+For non-contracted health care, the health insurances only reimburse 75% percent of their own average contracted fee. Expressing this figure in percentages of the corresponding NZa fee by $Z_{hij}$. Remember,
+$$ Z_{hij} = 75 \times Y_{hij}/X_{ij}\,.$$
+
+Figure \ref{fig:Reimb_Insurances} shows the reimbursed fee for each DBC of a health insurance expressed as a percentage of the corresponding NZa fee.
+\FloatBarrier
+\begin{figure}[ht]
+\includegraphics{./0_images/PercReimb_Insurances.pdf}
+\caption{}\label{fig:Reimb_Insurances}
+\end{figure}
+\FloatBarrier
+
+Replicate this figure. We used the following colors for the health care insurance companies:
+
+```{r}
+insurance_colors <- c(
+  CZ = "orange",
+  Menzis = "blue4", 
+  VGZ = "green4", 
+  `Z&Z` = "cornflowerblue", 
+  ZK = "darkred"
+)
+```
+
+
+
+## 3.4 About the Methodology of Average Contracted Fees
+
+In 2017 the NZa changed their method of computing the NZa fees. At the same time we see in Figure \ref{fig:Reimb_Insurances} that the variance of $Z_{hij}$ ("% of the NZa fee that is reimbursed") in 2017 more drastically increases for most of the insurances. 
+
+This was not the case however for the health insurance ZK. From figure \ref{fig:Reimb_Insurances} we can obtain that the average contracted fee ($Y_{hij}$) of ZK from 2016 and onwards is well-nigh linearly related to its corresponding NZa fee ($X_{ij}$ since the percentage reimbursed $Z_{hij}$ remains constant.
+
+A similar well-nigh linear relationship is found for VGZ in the years 2014 and 2016, but not anymore in 2017. In the following sub-subtask we will explore the average contracted fees of VGZ and Z&Z.
+
+
+### 3.4a Average Contracted Fees
+
+To explore whether any of the health insurances changed their methodology of computing their average contracted fee for each DBC code we created Figure \ref{fig:Boxplots_fees_Insurances}.
+
+In this figure we show for each health insurance a boxplot of the change in the percentages of the average contracted fees in a year period $j$ to $j + 1$. This change in percentages denoted by $d_{hi(j+ 1)}$, can be computed as  
+$$d_{hi(j+ 1)} = 100 \times (Y_{hi(j + 1)} / Y_{hij} - 1).$$
+
+Thus, Figure \ref{fig:Boxplots_fees_Insurances} is very similar to the boxplots presented in subtask 2.2b), but now for the health insurance fees. 
+
+\FloatBarrier
+\begin{figure}[ht]
+\includegraphics{./0_images/AvFee_Boxplots_Insurances.pdf}
+\caption{}\label{fig:Boxplots_fees_Insurances}
+\end{figure}
+\FloatBarrier
+
+Recreate this Figure with `ggplot()` code and interpret the boxplots for VGZ.
+
+
+### 3.4b 
+
+Compute the correlation matrix between the average contracted fees of VGZ for 2014-2018 and the NZa fee of 2014. What do you see? 
+
+### 3.4c
+
+Could we find a similar well-nigh linear relationship between the fees of Z&Z for 2017 or 2018 with that of any NZA fees from 2014 - 2018? Would you trust the correlation of the Z&Z fees with that of the NZA fee of 2015?
+
+
+## 3.5 Statistics on the % NZa fee reimbursed?
+
+Your direct boss has assigned you to assist in the court cases against ZK and VGZ. The task assigned to you is to come up "with some confidence intervals and p-values" for the 'true' mean of our variable $Z_{hij}$ for ZK and that of VGZ in the year 2018. 
+
+You did not manage to convince your direct boss that descriptive statistics would suffice here since you (basically) have the data of the complete population, i.e. we know the average contracted fees and the NZa fees for all DBC codes in the Mental Health Care sector.
+
+Knowing that you need to come up with results for your boss now, and knowing that you can convince your boss' boss to disregard the results you will have to come up with, you start working...
+
+
+### 3.5a Boostrapped quantile intverals for VGZ and ZK?
+
+Create your own bootstrapped 95% confidence interval for the true mean of $Z_{hij}$ for VGZ in 2018, and a bootstrapped 95% confidence interval for the true mean of $Z_{hij}$ for ZK in 2018. Note that given one sample, your best estimate for the trume mean, denoted by $\theta_{hj}$, is the sample mean:
+
+$$\bar{Z}_{hj} = N^{-1} \sum_{i=1}^N Z_{hij}.$$
+
+Create a bootstrapped interval based on quantiles only for $B_{bt} = 1000$ bootstrapped replicates.
+
+In case you did not manage to compute each $Z_{hij}$ in subtask 3.3, you may also use the variables `perc_VGZ2018` and `perc_ZK2018` from the data of the model answers `Variables_from_Model_Answers.RData`.
+
+
+### 3.5b Exploiting Symmetry $\theta$
+
+Your direct boss prefers you to come with a $p$-value. He tells you to perform a test where you "assume that $Z_{hij}$ is i.i.d., and its distribution is symmetric."
+
+Exploiting this symmetry, could you perform a permutation test for ZK and VGZ against a significance level of $\alpha = 0.05$ for the null hypothesis for ZK where 
+
+$$\theta_{ZK2018} \geq 62.5,$$
+
+and for the null hypothesis for VGZ where
+
+$$\theta_{VGZ2018} \leq 62.5.$$ 
+
+Here $\theta_{ZK2018}$ and $\theta_{VGZ2018}$ represent "true" means of the percentage reimbursed NZa fee for ZK and VGZ respectively.
+
+Perform your two permutation tests that exploit exchangeability through symmetry with each $B_pm = 1000$ replicates. Also interpret your test results (not more than three sentences each!)
+
+**NB.** We are asking you to conduct one-sided tests, and not to control for multiple testing.
+
+*Hint: In case you did not manage to obtain the "percentage NZa fee reimbursed" ($Z_{hij}$) variables from the data, you may also use the variables `perc_VGZ2018` and `perc_ZK2018` from the data of the model answers `Variables_from_Model_Answers.RData`.*
+
+
+\newpage 
+
+# 4. A Small Monte-Carlo Study regarding symmetry about $\theta$
+
+Stick to your permutation test of subtask 3.5b that exploits symmetry about $\theta$, but now assume that each $Z_{hij}$ is i.i.d. draw from a normal distribution with mean $\theta_{VGZ}$ and standard deviation $\sigma_{VGZ} = 4.1$.
+
+
+## 4.1 Type-I error
+
+Under the null hypothesis where $$\theta_{VGZ} \geq 62.5,$$ and a significance level of $\alpha = 0.05$, what is your Monte-Carlo estimate of the true type-I error? Does it equal $0.05$? 
+
+In other words, run the whole permutation test of 3.5b for each Monte-Carlo replicate. Then, out of $B_{mc} = 1000$ Monte-Carlo replicates, what is the proportion of $p$-values lower or equal to 0.05? 
+
+Keep using $N = 120$, and $B_{pm} = 1000$.
+
+
+## 4.2 Power: More about symmetry about $\theta$
+
+What would be your monte carlo estimate of the power of your permutation test given the null hypothesis, 
+
+$$H_0: \theta_{VGZ} \geq 62.5,$$
+
+and the alternative hypothesis where $$H_a: \theta_{VGZ} = 63.5.$$ 
+
+For your answer use the same values as in subtask 4.1 for $B_{mc}$, $B_{pm}$ and $N$.
+
+
+## 4.3 Reflecting on Permutation Tests.
+
+Limit your answer to a maximum of 150 words for the next two questions.
+
+### 4.3a
+
+Name two strategies with which you can obtain a measure of precision regarding your Monte-Carlo estimate of the power (or type-I error).
+
+### 4.3b
+
+What are the effects of a larger / smaller $N$, and of a larger / smaller $B_{pm}$ on the power and type-I error of the permutation test?
