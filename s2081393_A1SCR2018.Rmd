@@ -188,7 +188,6 @@ d %>%
 ## 3.1 Creating the Data Set
 
 ```{r}
-
 avrg_contr_fee <- function(path = "0_data/Tarievenoverzicht_HA1.xlsx") {
   insurances <- c("CZ", "Menzis", "VGZ", "Z&Z", "ZK")
   path %>%
@@ -290,20 +289,29 @@ dat_fig_3 <- dat_fig_2 %>%
   filter(!is.na(diff))
 
 ggplot(dat_fig_3, aes(x = Insurance, y = diff, color = Insurance)) +
-  stat_boxplot(geom ='errorbar') +
+  stat_boxplot(geom = "errorbar") +
   geom_boxplot() +
   scale_color_manual(values = insurance_colors) +
   facet_grid(rows = vars(Period)) +
   labs(y = "Fee Increase in %") +
-  theme(legend.title = element_blank(),
-        axis.text.x = element_text(angle=45, hjust = 1))
+  theme(
+    legend.title = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
 ```
 
-Don't forget to interpret!
+For VGZ the in or decrease of its fees is for every interval up until the last one constant, which means they used the same percentage of change for every code in one particular interval. The interval from 2017-2018 breaks with that rule, GVZ used multiple different percentages of change for its codes.
 
 ### 3.4a Average Contracted Fees
 
+```{r}
+dat_3_2 %>%
+  select(matches("VGZ"), `NZa 2014`) %>%
+  na.omit %>%
+  cor(.)
+```
 
+Don't forget to interpret!
 
 ### 3.4b 
 
