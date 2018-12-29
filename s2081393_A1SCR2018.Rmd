@@ -236,10 +236,36 @@ all.equal(dat_3_2, all_fees)
 ```
 
 
-### 3.3 Visualizing the Reimbursements for Non-Contracted Healht Care 
+### 3.3 Visualizing the Reimbursements for Non-Contracted Healh Care 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
+insurance_colors <- c(
+  CZ = "orange",
+  Menzis = "blue4",
+  VGZ = "green4",
+  `Z&Z` = "cornflowerblue",
+  ZK = "darkred"
+)
 
+dat_fig_2 <- dat_3_2 %>%
+  gather(key = "insurance_year", value = "fee", -Code, -`DBC Description 1`) %>%
+  separate(insurance_year, c("Insurance", "Year"), sep = " ", remove = T) %>%
+  mutate(Year = as.double(Year)) %>%
+  left_join(., dat_2_1) %>%
+  mutate(
+    fee_0.75 = 75 * fee / NZa_fee,
+    Insurance = factor(Insurance, levels = c("Z&Z", "ZK", "VGZ", "Menzis", "CZ"))
+  ) %>%
+  filter(Insurance != "NZa")
+
+ggplot(dat_fig_2, aes(x = Code, y = fee_0.75)) +
+  geom_point(aes(color = Insurance)) +
+  facet_grid(cols = vars(Year)) +
+  scale_x_continuous(breaks = c(7, 100, 200, 300)) +
+  ylim(50, 80) +
+  scale_color_manual(values = insurance_colors) +
+  labs(y = "% of NZa Fee Reimbursed") +
+  theme(legend.title=element_blank())
 ```
 
 
