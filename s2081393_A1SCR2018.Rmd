@@ -113,7 +113,7 @@ NZa_comparison %>%
 ### 2.2b 
 
 ```{r message=FALSE, warning=FALSE}
-dat_ex_2_2 <- dat_ex_2 %>%
+data_2_2 <- dat_ex_2 %>%
   arrange(Code, Year) %>%
   group_by(Code) %>%
   mutate(
@@ -124,7 +124,7 @@ dat_ex_2_2 <- dat_ex_2 %>%
   mutate(Year = factor(Year)) %>%
   filter(Year != 2014 & !(Period %in% c("NA-2014", "NA-2015")))
 
-ggplot(dat_ex_2_2, aes(x = Period, y = diff)) +
+ggplot(data_2_2, aes(x = Period, y = diff)) +
   stat_boxplot(geom ='errorbar') +
   geom_boxplot() +
   labs(y = "% Increase of NZa fees")
@@ -137,13 +137,13 @@ ggplot(dat_ex_2_2, aes(x = Period, y = diff)) +
 ### The Programming Task
 
 ```{r}
-perm_test <- function(data, first_year, second_year, B = 10){
-  d <- data %>%
-    filter(Year %in% c(first_year, second_year)) %>%
-    spread(key = Year, value = NZa_fee)
-  n <- nrow(d)
-  beta_hat <- d %>%
-    transmute((enexpr(second_year))/enexpr(first_year)))
+#perm_test <- function(data, first_year, second_year, B = 10){
+#  d <- data %>%
+#    filter(Year %in% c(first_year, second_year)) %>%
+#    spread(key = Year, value = NZa_fee)
+#  n <- nrow(d)
+#  beta_hat <- d %>%
+#    transmute((enexpr(second_year))/enexpr(first_year)))
   
   #theo_nxt_year <- 
 
@@ -152,10 +152,10 @@ perm_test <- function(data, first_year, second_year, B = 10){
   #  matrix(., ncol = B)
   #for (i in 1:B) {
   #}
-  return(beta_hat)
-}
+#  return(beta_hat)
+#}
 
-perm_test(dat_ex_2, 2016, 2017)
+#perm_test(dat_ex_2, 2016, 2017)
 ```
 
 ```{r}
@@ -178,9 +178,9 @@ d %>%
   #  matrix(., ncol = B)
   #for (i in 1:B) {
   #}
-  return(beta_hat)
+#  return(beta_hat)
 
-perm_test(dat_ex_2, 2016, 2017)
+#perm_test(dat_ex_2, 2016, 2017)
 ```
 
 
@@ -188,6 +188,7 @@ perm_test(dat_ex_2, 2016, 2017)
 ## 3.1 Creating the Data Set
 
 ```{r}
+
 avrg_contr_fee <- function(path = "0_data/Tarievenoverzicht_HA1.xlsx") {
   insurances <- c("CZ", "Menzis", "VGZ", "Z&Z", "ZK")
   path %>%
@@ -239,6 +240,7 @@ all.equal(dat_3_2, all_fees)
 ### 3.3 Visualizing the Reimbursements for Non-Contracted Healh Care 
 
 ```{r message=FALSE, warning=FALSE}
+insurance_levels <- c("Z&Z", "ZK", "VGZ", "Menzis", "CZ")
 insurance_colors <- c(
   CZ = "orange",
   Menzis = "blue4",
@@ -250,13 +252,13 @@ insurance_colors <- c(
 dat_fig_2 <- dat_3_2 %>%
   gather(key = "insurance_year", value = "fee", -Code, -`DBC Description 1`) %>%
   separate(insurance_year, c("Insurance", "Year"), sep = " ", remove = T) %>%
+  filter(Insurance != "NZa") %>%
   mutate(Year = as.double(Year)) %>%
   left_join(., dat_2_1) %>%
   mutate(
     fee_0.75 = 75 * fee / NZa_fee,
-    Insurance = factor(Insurance, levels = c("Z&Z", "ZK", "VGZ", "Menzis", "CZ"))
-  ) %>%
-  filter(Insurance != "NZa")
+    Insurance = factor(Insurance, levels = insurance_levels)
+  )
 
 ggplot(dat_fig_2, aes(x = Code, y = fee_0.75)) +
   geom_point(aes(color = Insurance)) +
@@ -265,13 +267,39 @@ ggplot(dat_fig_2, aes(x = Code, y = fee_0.75)) +
   ylim(50, 80) +
   scale_color_manual(values = insurance_colors) +
   labs(y = "% of NZa Fee Reimbursed") +
-  theme(legend.title=element_blank())
+  theme(legend.title = element_blank())
 ```
 
 
 ## 3.4 About the Methodology of Average Contracted Fees
 
+```{r}
+dat_fig_3 <- dat_fig_2 %>%
+  select(-`DBC Description 1`, -NZa_fee, -fee_0.75) %>%
+  filter(Insurance != "NZa") %>%
+  arrange(Code, Insurance) %>%
+  group_by(Insurance, Code) %>%
+  mutate(
+    diff = 100 * (fee / lag(fee) - 1),
+    Period = paste(as.character(lag(Year)), as.character(Year), sep = "-")
+  ) %>%
+  ungroup() %>%
+  mutate(
+    Insurance = factor(Insurance, levels = insurance_levels)
+  ) %>%
+  filter(!is.na(diff))
 
+ggplot(dat_fig_3, aes(x = Insurance, y = diff, color = Insurance)) +
+  stat_boxplot(geom ='errorbar') +
+  geom_boxplot() +
+  scale_color_manual(values = insurance_colors) +
+  facet_grid(rows = vars(Period)) +
+  labs(y = "Fee Increase in %") +
+  theme(legend.title = element_blank(),
+        axis.text.x = element_text(angle=45, hjust = 1))
+```
+
+Don't forget to interpret!
 
 ### 3.4a Average Contracted Fees
 
