@@ -11,48 +11,236 @@ library(knitr)
 library(readxl)
 library(tidyverse)
 set.seed(20190108)
+load("0_data/Variables_from_Model_Answers.RData")
 ```
 
 # 1. Regarding the DBC
 
 ## 1.1 Load the DBC codes and its descriptions
 
+```{r}
+dat <- read_xlsx("0_data/Tarievenoverzicht_HA1.xlsx", sheet = 1) %>%
+  select(Code, "Omschrijving type 1") %>%
+  mutate(Code = as.numeric(Code))
+
+all.equal(dat, Dutch_DBC)
+```
 
 
 ### 1.2
+
+```{r message=FALSE}
+dict_dutch <- read_csv("0_data/the_Dutch_words.txt",
+  col_names = F,
+  trim_ws = F,
+  na = character()
+)
+
+dict_english <- read_csv("0_data/the_English_translation.txt",
+  col_names = F,
+  trim_ws = F,
+  na = character()
+)
+
+dict <- set_names(unlist(dict_english), unlist(dict_dutch))
+
+dat_1_2 <- dat %>%
+  mutate(
+    "DBC Description 1" = str_replace_all(dat$`Omschrijving type 1`, dict)
+  ) %>%
+  select(Code, "DBC Description 1")
+
+all.equal(dat_1_2, DBC_tibble)
+```
 
 
 
 # 2. Regarding NZa fees only
 ## 2.1 Extract the NZa fees
 
+Create a function that imports the DBC codes (column 1) and the NZa fees (column 3) from all NZa sheets in Tarievenoverzicht_HA1.xlsx. When you apply the function on Tarievenoverzicht_HA1.xlsx, the output should be of class tibble and equal to NZa_fees from the data of the Model Answers.
+
+```{r}
+extract_NZa_fee <- function(path = "0_data/Tarievenoverzicht_HA1.xlsx") {
+  path %>%
+    excel_sheets() %>%
+    grep("NZA", ., value = T) %>%
+    set_names() %>%
+    map_dfr(
+      ~ read_excel(path = path, sheet = .x)[, c(1, 3)],
+      .id = "NZA/year"
+    ) %>%
+    separate("NZA/year", into = c("NZA", "Year")) %>%
+    mutate(
+      NZa_fee = coalesce(`basis landelijk`, tarief),
+      Code = as.double(code),
+      Year = as.double(Year)
+    ) %>%
+    select(Code, NZa_fee, Year)
+}
+
+all.equal(extract_NZa_fee(), NZa_fees)
+```
+
 
 
 ## 2.2 A methodology change in computing the NZa fees.
 ### 2.2a
 
+```{r message=FALSE}
+dat_ex_2 <- extract_NZa_fee()
 
+NZa_fee_2014 <- dat_ex_2 %>%
+  filter(Year == 2014) %>%
+  mutate(NZA_2014 = NZa_fee) %>%
+  select(NZA_2014, Code)
+
+NZa_comparison <- dat_ex_2 %>%
+  left_join(., NZa_fee_2014, key = Code)
+
+NZa_comparison %>%
+  filter(Year != 2014) %>%
+  group_by(Year) %>%
+  summarise(
+    "Min. change in %" = min(100 * (NZa_fee / NZA_2014 - 1), na.rm = T),
+    "Average change in %" = mean(100 * (NZa_fee / NZA_2014 - 1), na.rm = T),
+    "Median change in %" = median(100 * (NZa_fee / NZA_2014 - 1), na.rm = T),
+    "Max. change in %" = max(100 * (NZa_fee / NZA_2014 - 1), na.rm = T)
+  ) %>%
+  kable()
+```
 
 ### 2.2b 
+
+```{r message=FALSE, warning=FALSE}
+dat_ex_2_2 <- dat_ex_2 %>%
+  arrange(Code, Year) %>%
+  group_by(Code) %>%
+  mutate(
+    diff = 100 * (NZa_fee / lag(NZa_fee) - 1),
+    Period = paste(as.character(lag(Year)), as.character(Year), sep = "-")
+  ) %>%
+  ungroup() %>%
+  mutate(Year = factor(Year)) %>%
+  filter(Year != 2014 & !(Period %in% c("NA-2014", "NA-2015")))
+
+ggplot(dat_ex_2_2, aes(x = Period, y = diff)) +
+  stat_boxplot(geom ='errorbar') +
+  geom_boxplot() +
+  labs(y = "% Increase of NZa fees")
+
+```
 
 
 
 ## 2.3 Statistics and the Methodology for Computing the NZa Fees.
 ### The Programming Task
 
+```{r}
+perm_test <- function(data, first_year, second_year, B = 10){
+  d <- data %>%
+    filter(Year %in% c(first_year, second_year)) %>%
+    spread(key = Year, value = NZa_fee)
+  n <- nrow(d)
+  beta_hat <- d %>%
+    transmute((enexpr(second_year))/enexpr(first_year)))
+  
+  #theo_nxt_year <- 
+
+  #result <- numeric(B)
+  #perm <- replicate(B, sample(1:n)) %>%
+  #  matrix(., ncol = B)
+  #for (i in 1:B) {
+  #}
+  return(beta_hat)
+}
+
+perm_test(dat_ex_2, 2016, 2017)
+```
+
+```{r}
+d <- dat_ex_2 %>%
+  filter(Year %in% c(2016, 2017)) %>%
+  spread(key = Year, value = NZa_fee)
+n <- nrow(d)
+d %>%
+  mutate(
+    beta_hat = mean(`2017`/`2016`) - 1,
+    Tj = var((`2017` - (1 + beta_hat) * `2016`) * sqrt(`2016` / min(`2016`))),
+    h0_nxt_year = `2016` * (1 + beta_hat + rnorm(1, 0, 4))
+  )
+
+
+  #theo_nxt_year <- 
+
+  #result <- numeric(B)
+  #perm <- replicate(B, sample(1:n)) %>%
+  #  matrix(., ncol = B)
+  #for (i in 1:B) {
+  #}
+  return(beta_hat)
+
+perm_test(dat_ex_2, 2016, 2017)
+```
 
 
 # 3. About the Insurances
 ## 3.1 Creating the Data Set
 
+```{r}
+avrg_contr_fee <- function(path = "0_data/Tarievenoverzicht_HA1.xlsx") {
+  insurances <- c("CZ", "Menzis", "VGZ", "Z&Z", "ZK")
+  path %>%
+    excel_sheets() %>%
+    .[grepl(paste(insurances, collapse = "|"), .)] %>%
+    set_names() %>%
+    map_dfr(
+      ~ read_xlsx(path = path, sheet = .x, col_types = "text"),
+      .id = "id"
+    ) %>%
+    separate(id, c("Insurance", "Year"), sep = " ", remove = T) %>%
+    mutate(
+      Fee = as.double(coalesce(`Gecontracteerde tarieven`, `1`)),
+      Code = as.double(code),
+      Year = as.double(Year),
+      Insurance = factor(Insurance,
+        levels = c("Z&Z", "ZK", "VGZ", "Menzis", "CZ")
+      )
+    ) %>%
+    select(Code, Fee, Year, Insurance)
+}
 
+all.equal(avrg_contr_fee(), fees_insurances)
+```
 
 ## 3.2 Joining the NZa fees, the Insurance fees and the DBC codes with descriptions
 
+```{r message=FALSE}
+dat_2_1 <- extract_NZa_fee()
+dat_3_1 <- avrg_contr_fee()
+
+dat_NZa <- dat_2_1 %>%
+  filter(Code %in% dat_1_2$Code) %>%
+  mutate(Year = paste("NZa", Year)) %>%
+  spread(key = Year, value = NZa_fee)
+
+dat_3_2 <- dat_3_1 %>%
+  filter(Code %in% dat_1_2$Code) %>%
+  unite(insurance_year, Insurance, Year, sep = " ") %>%
+  spread(key = insurance_year, value = Fee) %>%
+  left_join(., dat_NZa, key = Code) %>%
+  left_join(., dat_1_2, key = Code) %>%
+  select(Code, `DBC Description 1`, everything())
+
+all.equal(dat_3_2, all_fees)
+```
 
 
 ### 3.3 Visualizing the Reimbursements for Non-Contracted Healht Care 
 
+```{r}
+
+```
 
 
 ## 3.4 About the Methodology of Average Contracted Fees
