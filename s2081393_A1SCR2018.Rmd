@@ -88,32 +88,34 @@ all.equal(extract_NZa_fee(), NZa_fees)
 ### 2.2a
 
 ```{r message=FALSE}
-dat_ex_2 <- extract_NZa_fee()
+dat_2_2a <- extract_NZa_fee()
 
-NZa_fee_2014 <- dat_ex_2 %>%
+NZa_fee_2014 <- dat_2_2a %>%
   filter(Year == 2014) %>%
   mutate(NZA_2014 = NZa_fee) %>%
   select(NZA_2014, Code)
 
-NZa_comparison <- dat_ex_2 %>%
-  left_join(., NZa_fee_2014, key = Code)
+NZa_comparison <- dat_2_2a %>%
+  inner_join(., NZa_fee_2014, key = Code)
 
 NZa_comparison %>%
   filter(Year != 2014) %>%
+  na.omit() %>%
   group_by(Year) %>%
   summarise(
-    "Min. change in %" = min(100 * (NZa_fee / NZA_2014 - 1), na.rm = T),
-    "Average change in %" = mean(100 * (NZa_fee / NZA_2014 - 1), na.rm = T),
-    "Median change in %" = median(100 * (NZa_fee / NZA_2014 - 1), na.rm = T),
-    "Max. change in %" = max(100 * (NZa_fee / NZA_2014 - 1), na.rm = T)
+    "Min. change in %" = min(100 * (NZa_fee / NZA_2014 - 1)),
+    "Average change in %" = mean(100 * (NZa_fee / NZA_2014 - 1)),
+    "Median change in %" = median(100 * (NZa_fee / NZA_2014 - 1)),
+    "Max. change in %" = max(100 * (NZa_fee / NZA_2014 - 1))
   ) %>%
+  round(4) %>%
   kable()
 ```
 
 ### 2.2b 
 
 ```{r message=FALSE, warning=FALSE}
-data_2_2 <- dat_ex_2 %>%
+data_2_2 <- dat_2_2a %>%
   arrange(Code, Year) %>%
   group_by(Code) %>%
   mutate(
@@ -135,61 +137,73 @@ ggplot(data_2_2, aes(x = Period, y = diff)) +
 
 ## 2.3 Statistics and the Methodology for Computing the NZa Fees.
 ### The Programming Task
-
-```{r}
-#perm_test <- function(data, first_year, second_year, B = 10){
-#  d <- data %>%
-#    filter(Year %in% c(first_year, second_year)) %>%
-#    spread(key = Year, value = NZa_fee)
-#  n <- nrow(d)
-#  beta_hat <- d %>%
-#    transmute((enexpr(second_year))/enexpr(first_year)))
-  
-  #theo_nxt_year <- 
-
-  #result <- numeric(B)
-  #perm <- replicate(B, sample(1:n)) %>%
-  #  matrix(., ncol = B)
-  #for (i in 1:B) {
-  #}
-#  return(beta_hat)
-#}
-
-#perm_test(dat_ex_2, 2016, 2017)
-```
-
-```{r}
-d <- dat_ex_2 %>%
-  filter(Year %in% c(2016, 2017)) %>%
+```{r message=FALSE}
+d <- dat_2_2a %>%
+  filter(Year %in% 2016:2018) %>%
   spread(key = Year, value = NZa_fee)
+
+set.seed(123)
+B <- 1000
 n <- nrow(d)
-d %>%
-  mutate(
-    beta_hat = mean(`2017`/`2016`) - 1,
-    Tj = var((`2017` - (1 + beta_hat) * `2016`) * sqrt(`2016` / min(`2016`))),
-    h0_nxt_year = `2016` * (1 + beta_hat + rnorm(1, 0, 4))
+result <- numeric(B)
+perm <- replicate(B, sample(1:n)) %>% matrix(., ncol = B)
+beta_hat <- mean(d$`2017`/d$`2016`) - 1
+Tj_obs <- var(
+  (d$`2017` - (1 + beta_hat) * d$`2016`) / d$`2016` * sqrt(d$`2016` / min(d$`2016`))
   )
+for (i in 1:B) {
+  idx <- perm[, i]
+  h0_perm <- d$`2016` * (d$`2017`[idx] / d$`2016`[idx])
+  beta_hat <- mean(h0_perm/d$`2016`) - 1
+  result[i] <- var(
+    (h0_perm - (1 + beta_hat) * d$`2016`) / d$`2016` * sqrt(d$`2016` / min(d$`2016`))
+  )
+}
 
+p_value <- mean(result > Tj_obs)
 
-  #theo_nxt_year <- 
-
-  #result <- numeric(B)
-  #perm <- replicate(B, sample(1:n)) %>%
-  #  matrix(., ncol = B)
-  #for (i in 1:B) {
-  #}
-#  return(beta_hat)
-
-#perm_test(dat_ex_2, 2016, 2017)
+ggplot(as.tibble(result), aes(x = result)) +
+  geom_histogram(binwidth = 0.01, fill = "grey", color = "black") +
+  geom_vline(xintercept = Tj_obs, col = "red") +
+  labs(x = "Tj", title = "2016-2017")
 ```
 
+The p-value is `r p_value`. Considering an significance level of $\alpha = 0.05/2$ our result is highly significant and we can reject the null hypothesis.
+
+```{r message=FALSE}
+set.seed(123)
+B <- 1000
+n <- nrow(d)
+result <- numeric(B)
+perm <- replicate(B, sample(1:n)) %>% matrix(., ncol = B)
+beta_hat <- mean(d$`2018`/d$`2017`) - 1
+Tj_obs <- var(
+  (d$`2018` - (1 + beta_hat) * d$`2017`) / d$`2017` * sqrt(d$`2017` / min(d$`2017`))
+  )
+for (i in 1:B) {
+  idx <- perm[, i]
+  h0_perm <- d$`2017` * (d$`2018`[idx] / d$`2017`[idx])
+  beta_hat <- mean(h0_perm/d$`2017`) - 1
+  result[i] <- var(
+    (h0_perm - (1 + beta_hat) * d$`2017`) / d$`2017` * sqrt(d$`2017` / min(d$`2017`))
+  )
+}
+p_value_2 <- mean(result > Tj_obs)
+
+ggplot(as.tibble(result), aes(x = result)) +
+  geom_histogram(fill = "grey", color = "black") +
+  geom_vline(xintercept = Tj_obs, col = "red") +
+  labs(x = "Tj", title = "2017-2018")
+```
+
+The p-value is `r p_value_2`. Considering an significance level of $\alpha = 0.05/2$ our result is highly insignificant and we can't reject the null hypothesis.
 
 # 3. About the Insurances
 ## 3.1 Creating the Data Set
 
 ```{r}
 avrg_contr_fee <- function(path = "0_data/Tarievenoverzicht_HA1.xlsx") {
-  insurances <- c("CZ", "Menzis", "VGZ", "Z&Z", "ZK")
+  insurances <- c("Z&Z", "ZK", "VGZ", "Menzis", "CZ")
   path %>%
     excel_sheets() %>%
     .[grepl(paste(insurances, collapse = "|"), .)] %>%
@@ -199,15 +213,14 @@ avrg_contr_fee <- function(path = "0_data/Tarievenoverzicht_HA1.xlsx") {
       .id = "id"
     ) %>%
     separate(id, c("Insurance", "Year"), sep = " ", remove = T) %>%
-    mutate(
-      Fee = as.double(coalesce(`Gecontracteerde tarieven`, `1`)),
+    transmute(
       Code = as.double(code),
+      Fee = as.double(coalesce(`Gecontracteerde tarieven`, `1`)),
       Year = as.double(Year),
       Insurance = factor(Insurance,
-        levels = c("Z&Z", "ZK", "VGZ", "Menzis", "CZ")
+        levels = insurances
       )
-    ) %>%
-    select(Code, Fee, Year, Insurance)
+    )
 }
 
 all.equal(avrg_contr_fee(), fees_insurances)
@@ -269,7 +282,6 @@ ggplot(dat_fig_2, aes(x = Code, y = fee_0.75)) +
   theme(legend.title = element_blank())
 ```
 
-
 ## 3.4 About the Methodology of Average Contracted Fees
 
 ```{r}
@@ -308,7 +320,9 @@ For VGZ the in or decrease of its fees is for every interval up until the last o
 dat_3_2 %>%
   select(matches("VGZ"), `NZa 2014`) %>%
   na.omit %>%
-  cor(.)
+  cor(.) %>%
+  round(4) %>%
+  kable()
 ```
 
 Don't forget to interpret!
