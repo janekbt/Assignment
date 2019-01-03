@@ -20,7 +20,7 @@ load("0_data/Variables_from_Model_Answers.RData")
 
 ```{r}
 dat <- read_xlsx("0_data/Tarievenoverzicht_HA1.xlsx", sheet = 1) %>%
-  select(Code, "Omschrijving type 1") %>%
+  select(Code, `Omschrijving type 1`) %>%
   mutate(Code = as.numeric(Code))
 
 all.equal(dat, Dutch_DBC)
@@ -46,9 +46,9 @@ dict <- set_names(unlist(dict_english), unlist(dict_dutch))
 
 dat_1_2 <- dat %>%
   mutate(
-    "DBC Description 1" = str_replace_all(dat$`Omschrijving type 1`, dict)
+    `DBC Description 1` = str_replace_all(dat$`Omschrijving type 1`, dict)
   ) %>%
-  select(Code, "DBC Description 1")
+  select(Code, `DBC Description 1`)
 
 all.equal(dat_1_2, DBC_tibble)
 ```
@@ -92,24 +92,22 @@ dat_2_2a <- extract_NZa_fee()
 
 NZa_fee_2014 <- dat_2_2a %>%
   filter(Year == 2014) %>%
-  mutate(NZA_2014 = NZa_fee) %>%
+  rename(NZA_2014 = NZa_fee) %>%
   select(NZA_2014, Code)
 
-NZa_comparison <- dat_2_2a %>%
-  inner_join(., NZa_fee_2014, key = Code)
-
-NZa_comparison %>%
+dat_2_2a %>%
+  inner_join(., NZa_fee_2014, key = Code) %>%
   filter(Year != 2014) %>%
   na.omit() %>%
   group_by(Year) %>%
   summarise(
-    "Min. change in %" = min(100 * (NZa_fee / NZA_2014 - 1)),
-    "Average change in %" = mean(100 * (NZa_fee / NZA_2014 - 1)),
-    "Median change in %" = median(100 * (NZa_fee / NZA_2014 - 1)),
-    "Max. change in %" = max(100 * (NZa_fee / NZA_2014 - 1))
+    `Min. change in %` = min(100 * (NZa_fee / NZA_2014 - 1)),
+    `Average change in %` = mean(100 * (NZa_fee / NZA_2014 - 1)),
+    `Median change in %` = median(100 * (NZa_fee / NZA_2014 - 1)),
+    `Max. change in %` = max(100 * (NZa_fee / NZA_2014 - 1))
   ) %>%
   round(4) %>%
-  kable()
+  kable(caption = "Changes in NZa fee computation compared to 2014")
 ```
 
 ### 2.2b 
@@ -142,19 +140,18 @@ d <- dat_2_2a %>%
   filter(Year %in% 2016:2018) %>%
   spread(key = Year, value = NZa_fee)
 
-set.seed(123)
 B <- 1000
 n <- nrow(d)
 result <- numeric(B)
 perm <- replicate(B, sample(1:n)) %>% matrix(., ncol = B)
-beta_hat <- mean(d$`2017`/d$`2016`) - 1
+beta_hat <- mean(d$`2017` / d$`2016`) - 1
 Tj_obs <- var(
   (d$`2017` - (1 + beta_hat) * d$`2016`) / d$`2016` * sqrt(d$`2016` / min(d$`2016`))
-  )
+)
 for (i in 1:B) {
   idx <- perm[, i]
   h0_perm <- d$`2016` * (d$`2017`[idx] / d$`2016`[idx])
-  beta_hat <- mean(h0_perm/d$`2016`) - 1
+  beta_hat <- mean(h0_perm / d$`2016`) - 1
   result[i] <- var(
     (h0_perm - (1 + beta_hat) * d$`2016`) / d$`2016` * sqrt(d$`2016` / min(d$`2016`))
   )
@@ -171,19 +168,18 @@ ggplot(as.tibble(result), aes(x = result)) +
 The p-value is `r p_value`. Considering an significance level of $\alpha = 0.05/2$ our result is highly significant and we can reject the null hypothesis.
 
 ```{r message=FALSE}
-set.seed(123)
 B <- 1000
 n <- nrow(d)
 result <- numeric(B)
 perm <- replicate(B, sample(1:n)) %>% matrix(., ncol = B)
-beta_hat <- mean(d$`2018`/d$`2017`) - 1
+beta_hat <- mean(d$`2018` / d$`2017`) - 1
 Tj_obs <- var(
   (d$`2018` - (1 + beta_hat) * d$`2017`) / d$`2017` * sqrt(d$`2017` / min(d$`2017`))
-  )
+)
 for (i in 1:B) {
   idx <- perm[, i]
   h0_perm <- d$`2017` * (d$`2018`[idx] / d$`2017`[idx])
-  beta_hat <- mean(h0_perm/d$`2017`) - 1
+  beta_hat <- mean(h0_perm / d$`2017`) - 1
   result[i] <- var(
     (h0_perm - (1 + beta_hat) * d$`2017`) / d$`2017` * sqrt(d$`2017` / min(d$`2017`))
   )
@@ -217,9 +213,7 @@ avrg_contr_fee <- function(path = "0_data/Tarievenoverzicht_HA1.xlsx") {
       Code = as.double(code),
       Fee = as.double(coalesce(`Gecontracteerde tarieven`, `1`)),
       Year = as.double(Year),
-      Insurance = factor(Insurance,
-        levels = insurances
-      )
+      Insurance = factor(Insurance, levels = insurances)
     )
 }
 
@@ -283,6 +277,7 @@ ggplot(dat_fig_2, aes(x = Code, y = fee_0.75)) +
 ```
 
 ## 3.4 About the Methodology of Average Contracted Fees
+### 3.4a Average Contracted Fees
 
 ```{r}
 dat_fig_3 <- dat_fig_2 %>%
@@ -295,9 +290,7 @@ dat_fig_3 <- dat_fig_2 %>%
     Period = paste(as.character(lag(Year)), as.character(Year), sep = "-")
   ) %>%
   ungroup() %>%
-  mutate(
-    Insurance = factor(Insurance, levels = insurance_levels)
-  ) %>%
+  mutate(Insurance = factor(Insurance, levels = insurance_levels)) %>%
   filter(!is.na(diff))
 
 ggplot(dat_fig_3, aes(x = Insurance, y = diff, color = Insurance)) +
@@ -312,51 +305,113 @@ ggplot(dat_fig_3, aes(x = Insurance, y = diff, color = Insurance)) +
   )
 ```
 
-For VGZ the in or decrease of its fees is for every interval up until the last one constant, which means they used the same percentage of change for every code in one particular interval. The interval from 2017-2018 breaks with that rule, GVZ used multiple different percentages of change for its codes.
+For VGZ the in or decrease of its fees is for every interval up until the last one constant, which means they used around the same percentage of change for every code in one particular interval. The interval from 2017-2018 breaks with that rule, GVZ used multiple different percentages of change for its codes.
 
-### 3.4a Average Contracted Fees
+### 3.4b 
 
 ```{r}
 dat_3_2 %>%
   select(matches("VGZ"), `NZa 2014`) %>%
   na.omit %>%
-  cor(.) %>%
+  cor(., use = "pairwise.complete.obs") %>%
   round(4) %>%
-  kable()
+  kable(caption = "Correlation matrix of VGZ 2014-2018 and NZa 2014")
 ```
 
-Don't forget to interpret!
-
-### 3.4b 
-
-
+The correlation from VGZ 2014 until 2017 with NZa 2014 is pretty constant and close to 1. Only the correlation of VGZ 2018 and NZa 2014 differs slightly and is even closer to 1.
 
 ### 3.4c
 
+```{r}
+dat_3_2 %>%
+  select(matches("NZa"), `Z&Z 2017`, `Z&Z 2018`) %>%
+  na.omit %>%
+  cor(., use = "pairwise.complete.obs") %>%
+  round(4) %>%
+  kable(caption = "Correlation matrix of NZa 2014-2018 and Z&Z 2017-2018")
+```
+
+This correlation between the Z&Z 2017 as well as 2018 and all the NZa fees between 2014 and 2018 exceed 0.99. Even though there is some variation one could say there is a well-neigh linear relationship.
+
+```{r}
+obs <- nrow(dat_3_2)
+NAs <- sum(is.na(dat_3_2$`NZa 2015`))
+```
+
+I also wouldn't trust a correlation between NZa 2015 and any of the other Insurances because out of `r obs` obesrvations `r NAs` are NAs.
 
 
 ## 3.5 Statistics on the % NZa fee reimbursed?
-
-
-
 ### 3.5a Boostrapped quantile intverals for VGZ and ZK?
 
+```{r message=FALSE, warning=FALSE}
+boot_strp_mean <- function(insurance, data = dat_3_5) {
+  d <- dat_fig_2 %>% filter(Insurance == insurance & Year == 2018)
+  B = 1000
+  n <- 120
+  sample <- sample(1:nrow(d), n*B, replace = T) %>% matrix(., ncol = B)
+  result <- apply(sample, 2, function(x) mean(d$`fee_0.75`[x], na.rm = T)) %>%
+    quantile(., probs = c(0.025, 0.975))
+  return(result)
+}
+
+c(boot_strp_mean("VGZ"), boot_strp_mean("ZK")) %>%
+  matrix(
+    ncol = 2,
+    dimnames = list(
+      c("Lower bound: 2.5%", "Upper bound: 97.5%"),
+      c("VGZ", c("ZK"))
+    )
+  ) %>%
+  kable(caption = "Bootstrapped confidence intervals")
+```
 
 
 ### 3.5b Exploiting Symmetry $\theta$
 
+```{r message=FALSE, warning=FALSE}
+perm_p_val <- function(B_pm = 1000, n = 120) {
+  insurance <- c("ZK", "VGZ")
+  result <- numeric(B_pm)
+  p_values <- numeric(length(insurance))
+  names(p_values) <- insurance
 
+  for (i in 1:length(insurance)) {
+    ins <- insurance[i]
+    d <- dat_fig_2 %>% filter(Insurance == ins & Year == 2018)
+    sample <- sample(1:nrow(d), n * B_pm, replace = T) %>% matrix(., ncol = B_pm)
+    result <- apply(sample, 2, function(x) mean(d$`fee_0.75`[x], na.rm = T))
+
+    if (ins == "ZK") {
+      p_values[i] <- mean(result >= 62.5)
+    } else if (ins == "VGZ") {
+      p_values[i] <- mean(result <= 62.5)
+    }
+  }
+  return(p_values)
+}
+
+perm_p_val() %>%
+  kable(col.names = "P-value", caption = "Permutation p-values")
+
+```
+
+The permutation p-value of ZK (`r p_values[1]`) is below the significance level of $\alpha = 0.05$. We therefore can reject the null hypothesis. The permutation p-value of VGZ (`r p_values[2]`) on the other hand is bigger than $0.05$. We therefore can't reject the null hypothesis.
 
 # 4. A Small Monte-Carlo Study regarding symmetry about $\theta$
-
-
-
 ## 4.1 Type-I error
 
-
+```{r}
+B_mc <- 1000
+type_1_err <- mean(replicate(B_mc, perm_p_val()[2] <= 0.05))
+```
+The type-I error is `r type_1_err`.
 
 ## 4.2 Power: More about symmetry about $\theta$
 
+```{r}
+
+```
 
 
 ## 4.3 Reflecting on Permutation Tests.
