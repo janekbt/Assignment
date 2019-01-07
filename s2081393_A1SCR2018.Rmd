@@ -58,8 +58,6 @@ all.equal(dat_1_2, DBC_tibble)
 # 2. Regarding NZa fees only
 ## 2.1 Extract the NZa fees
 
-Create a function that imports the DBC codes (column 1) and the NZa fees (column 3) from all NZa sheets in Tarievenoverzicht_HA1.xlsx. When you apply the function on Tarievenoverzicht_HA1.xlsx, the output should be of class tibble and equal to NZa_fees from the data of the Model Answers.
-
 ```{r}
 extract_NZa_fee <- function(path = "0_data/Tarievenoverzicht_HA1.xlsx") {
   path %>%
@@ -71,12 +69,11 @@ extract_NZa_fee <- function(path = "0_data/Tarievenoverzicht_HA1.xlsx") {
       .id = "NZA/year"
     ) %>%
     separate("NZA/year", into = c("NZA", "Year")) %>%
-    mutate(
-      NZa_fee = coalesce(`basis landelijk`, tarief),
+    transmute(
       Code = as.double(code),
+      NZa_fee = coalesce(`basis landelijk`, tarief),
       Year = as.double(Year)
-    ) %>%
-    select(Code, NZa_fee, Year)
+    )
 }
 
 all.equal(extract_NZa_fee(), NZa_fees)
@@ -118,11 +115,12 @@ data_2_2 <- dat_2_2a %>%
   group_by(Code) %>%
   mutate(
     diff = 100 * (NZa_fee / lag(NZa_fee) - 1),
-    Period = paste(as.character(lag(Year)), as.character(Year), sep = "-")
+    Period = paste(lag(Year), Year, sep = "-")
   ) %>%
   ungroup() %>%
   mutate(Year = factor(Year)) %>%
-  filter(Year != 2014 & !(Period %in% c("NA-2014", "NA-2015")))
+  filter(Year != 2014) %>%
+  na.omit()
 
 ggplot(data_2_2, aes(x = Period, y = diff)) +
   stat_boxplot(geom ='errorbar') +
@@ -287,11 +285,11 @@ dat_fig_3 <- dat_fig_2 %>%
   group_by(Insurance, Code) %>%
   mutate(
     diff = 100 * (fee / lag(fee) - 1),
-    Period = paste(as.character(lag(Year)), as.character(Year), sep = "-")
+    Period = paste(lag(Year), Year, sep = "-")
   ) %>%
   ungroup() %>%
   mutate(Insurance = factor(Insurance, levels = insurance_levels)) %>%
-  filter(!is.na(diff))
+  na.omit()
 
 ggplot(dat_fig_3, aes(x = Insurance, y = diff, color = Insurance)) +
   stat_boxplot(geom = "errorbar") +
@@ -301,11 +299,11 @@ ggplot(dat_fig_3, aes(x = Insurance, y = diff, color = Insurance)) +
   labs(y = "Fee Increase in %") +
   theme(
     legend.title = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 1)
+    axis.text.x = element_text(angle = 60, hjust = 1)
   )
 ```
 
-For VGZ the in or decrease of its fees is for every interval up until the last one constant, which means they used around the same percentage of change for every code in one particular interval. The interval from 2017-2018 breaks with that rule, GVZ used multiple different percentages of change for its codes.
+For VGZ the in- or decrease of its fees is inside every interval up until the last one constant, which means they used around the same percentage of change for every code in one particular interval. The interval from 2017-2018 breaks with that rule, GVZ used multiple different percentages of change for its codes.
 
 ### 3.4b 
 
@@ -338,19 +336,22 @@ obs <- nrow(dat_3_2)
 NAs <- sum(is.na(dat_3_2$`NZa 2015`))
 ```
 
-I also wouldn't trust a correlation between NZa 2015 and any of the other Insurances because out of `r obs` obesrvations `r NAs` are NAs.
+I also wouldn't trust a correlation between NZa 2015 and any of the other Insurances because  for NZa 2015 out of `r obs` obesrvations `r NAs` are NAs.
 
 
 ## 3.5 Statistics on the % NZa fee reimbursed?
 ### 3.5a Boostrapped quantile intverals for VGZ and ZK?
 
 ```{r message=FALSE, warning=FALSE}
-boot_strp_mean <- function(insurance, data = dat_3_5) {
-  d <- dat_fig_2 %>% filter(Insurance == insurance & Year == 2018)
-  B = 1000
+boot_strp_mean <- function(insurance){
+  B <- 1000
   n <- 120
-  sample <- sample(1:nrow(d), n*B, replace = T) %>% matrix(., ncol = B)
-  result <- apply(sample, 2, function(x) mean(d$`fee_0.75`[x], na.rm = T)) %>%
+  d <- dat_fig_2 %>% filter(Insurance == insurance & Year == 2018)
+  result <- sample(1:nrow(d), n*B, replace = T) %>% # Create samples
+    matrix(., ncol = B) %>% # Puts them into a matrix
+    d$`fee_0.75`[.] %>% # Uses the matrix to index the data
+    matrix(., ncol = B) %>% # Converts the resulting vector into a matrix
+    colMeans(., na.rm = TRUE) %>% 
     quantile(., probs = c(0.025, 0.975))
   return(result)
 }
@@ -370,55 +371,82 @@ c(boot_strp_mean("VGZ"), boot_strp_mean("ZK")) %>%
 ### 3.5b Exploiting Symmetry $\theta$
 
 ```{r message=FALSE, warning=FALSE}
-perm_p_val <- function(B_pm = 1000, n = 120) {
-  insurance <- c("ZK", "VGZ")
-  result <- numeric(B_pm)
-  p_values <- numeric(length(insurance))
-  names(p_values) <- insurance
-
-  for (i in 1:length(insurance)) {
-    ins <- insurance[i]
-    d <- dat_fig_2 %>% filter(Insurance == ins & Year == 2018)
-    sample <- sample(1:nrow(d), n * B_pm, replace = T) %>% matrix(., ncol = B_pm)
-    result <- apply(sample, 2, function(x) mean(d$`fee_0.75`[x], na.rm = T))
-
-    if (ins == "ZK") {
-      p_values[i] <- mean(result >= 62.5)
-    } else if (ins == "VGZ") {
-      p_values[i] <- mean(result <= 62.5)
-    }
-  }
-  return(p_values)
+symmetry <- function(data, B = 1000){
+  N <- length(data)
+  theta <- mean(data)
+  t_b <- numeric(B)
+  S <- sample(c(-1, 1), B * N, replace = TRUE) %>%
+    matrix(ncol = B)
+  t_b <- colMeans(S * (data - theta) + theta)
+  return(t_b)
 }
 
-perm_p_val() %>%
-  kable(col.names = "P-value", caption = "Permutation p-values")
+dat_ZK <- dat_fig_2 %>%
+  filter(Insurance == "ZK" & Year == 2018) %>%
+  na.omit %>%
+  select(fee_0.75) %>%
+  unlist(.) 
 
+p_value_ZK <- mean(symmetry(dat_ZK) >= 62.5)
+
+dat_VGZ <- dat_fig_2 %>%
+  filter(Insurance == "VGZ" & Year == 2018) %>%
+  na.omit %>%
+  select(fee_0.75) %>%
+  unlist(.)
+
+p_value_VGZ <- mean(symmetry(dat_VGZ) <= 62.5)
 ```
 
-The permutation p-value of ZK (`r p_values[1]`) is below the significance level of $\alpha = 0.05$. We therefore can reject the null hypothesis. The permutation p-value of VGZ (`r p_values[2]`) on the other hand is bigger than $0.05$. We therefore can't reject the null hypothesis.
+
+The permutation p-value of ZK (`r p_value_ZK`) is below the significance level of $\alpha = 0.05$. We therefore can reject the null hypothesis. The permutation p-value of VGZ (`r p_value_VGZ`) on the other hand is bigger than $0.05$. We therefore can't reject the null hypothesis.
 
 # 4. A Small Monte-Carlo Study regarding symmetry about $\theta$
 ## 4.1 Type-I error
 
 ```{r}
 B_mc <- 1000
-type_1_err <- mean(replicate(B_mc, perm_p_val()[2] <= 0.05))
+n <- length(dat_VGZ)
+mu <- mean(dat_VGZ)
+std <- 4.1
+result <- numeric(B_mc)
+
+for (i in 1:B_mc) {
+  d <- rnorm(n, mu, std)
+  result[i] <- mean(symmetry(d) <= 62.5)
+}
+
+type_1_err <- mean(result <= 0.05)
 ```
 The type-I error is `r type_1_err`.
 
 ## 4.2 Power: More about symmetry about $\theta$
 
 ```{r}
+B_mc <- 1000
+n <- length(dat_VGZ)
+mu <- 63.5
+std <- 4.1
+result <- numeric(B_mc)
 
+for (i in 1:B_mc) {
+  d <- rnorm(n, mu, std)
+  result[i] <- mean(symmetry(d) <= 62.5)
+}
+
+power <- mean(result <= 0.05)
 ```
 
+The power would be `r power`.
 
 ## 4.3 Reflecting on Permutation Tests.
 ### 4.3a
 
-
+One strategy would be a Monte carlo Simulation on the computation of the power. By doing this we could construct a confidence interval which would be an estimate of the precision. Another method would be do again a Monte Carlo simulation as in the strategy before, but this time calculate the standard deviation or the variance as a measure of precision.
 
 ### 4.3b
 
+Type-I error: the size is unaffected by B, it only affects the variance of multiple calculations of that error (higher power = smaller variance). A higher N increases the type-I error and vice versa.
+
+Power: Same thing for the power concerning B and N as for the type-I error. 
 
